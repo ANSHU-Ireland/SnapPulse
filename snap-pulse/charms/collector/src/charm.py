@@ -1,31 +1,44 @@
 #!/usr/bin/env python3
+"""Collector Charm for SnapPulse."""
 
-"""Charm for SnapPulse Collector service."""
-
-import logging
-import subprocess
-import os
-
-from ops.charm import CharmBase
-from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus
-
-logger = logging.getLogger(__name__)
+from ops.charm import CharmBase
+from ops.pebble import Layer
+from ops.model import ActiveStatus
 
 
 class CollectorCharm(CharmBase):
-    """Charm the service."""
-
-    _stored = StoredState()
+    """Charm the Collector service."""
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.framework.observe(
-            self.on.collector_pebble_ready, self._on_collector_pebble_ready
-        )
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self._stored.set_default(started=False)
+
+    def _on_install(self, _):
+        """Handle the install event."""
+        self.unit.status = ActiveStatus("installing dependencies")
+
+    def _on_config_changed(self, _):
+        """Handle the config-changed event."""
+        layer = Layer(
+            {
+                "summary": "Collector",
+                "services": {
+                    "collector": {
+                        "override": "replace",
+                        "command": "python app.py",
+                        "startup": "enabled",
+                    }
+                },
+            }
+        )
+        self.unit.get_container("collector").add_layer("collector", layer, combine=True)
+        self.unit.status = ActiveStatus()
+
+
+if __name__ == "__main__":
+    main(CollectorCharm)
 
     def _on_collector_pebble_ready(self, event):
         """Handle pebble-ready event."""

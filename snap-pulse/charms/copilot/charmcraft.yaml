@@ -1,12 +1,12 @@
 name: copilot
 type: charm
 bases:
-  - build-on:
-      - name: ubuntu
-        channel: '22.04'
-    run-on:
-      - name: ubuntu
-        channel: '22.04'
+- build-on:
+  - name: ubuntu
+    channel: '22.04'
+  run-on:
+  - name: ubuntu
+    channel: '22.04'
 
 description: |
   SnapPulse copilot service charm that provides AI-powered
@@ -18,7 +18,7 @@ config:
   options:
     github-token:
       type: string
-      default: ""
+      default: ''
       description: GitHub personal access token for creating PRs
 
 containers:

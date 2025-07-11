@@ -1,61 +1,121 @@
-import os, asyncio, datetime as dt
+#!/usr/bin/env python3
+"""
+SnapPulse Collector Service
+
+Collects snap package data from the Snap Store API and forwards it to the API service.
+"""
+
+import asyncio
+import datetime as dt
+import json
+import os
+import logging
+from typing import Dict, Any
+
 import httpx
-from snapstore import SnapStore
-from feast import FeatureStore
 
-store_api = SnapStore()
-fs = FeatureStore(repo_path="feast_repo")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# API endpoint for ingesting data
-API_ENDPOINT = os.environ.get("API_ENDPOINT", "http://localhost:8000")
+# Configuration
+SNAP_NAME = os.getenv("SNAP_NAME", "firefox")
+INTERVAL = int(os.getenv("POLL_SEC", "1800"))  # 30 minutes default
+API_URL = os.getenv("API_URL", "http://localhost:8000")
+
+# Snap Store API base URL
+SNAP_STORE_API = "https://api.snapcraft.io/v2"
 
 
-async def job():
-    snap = os.environ.get("SNAP_NAME", "firefox")  # Default to firefox for testing
-    try:
-        meta = store_api.details(snap)
+async def get_snap_info(snap_name: str) -> Dict[str, Any]:
+    """Get snap information from the Snap Store API."""
+    async with httpx.AsyncClient() as client:
+        try:
+            # Get snap details
+            response = await client.get(
+                f"{SNAP_STORE_API}/snaps/info/{snap_name}",
+                headers={
+                    "Snap-Device-Series": "16",
+                    "User-Agent": "SnapPulse/1.0",
+                },
+            )
+            response.raise_for_status()
 
-        # Prepare data for both Feast and API
-        record = {
-            "snap": snap,
-            "download_total": meta.channel_downloads.get("stable", 0),
-            "timestamp": dt.datetime.utcnow(),
-        }
+            snap_data = response.json()
+            logger.info(f"Retrieved data for snap: {snap_name}")
 
-        # Store in Feast
-        fs.write_to_online_store("snap_metrics", [record])
-        print("Pushed to Feast:", record)
+            return {
+                "snap_name": snap_name,
+                "title": snap_data.get("name", snap_name),
+                "summary": snap_data.get("summary", ""),
+                "description": snap_data.get("description", ""),
+                "publisher": snap_data.get("publisher", {}).get("display-name", ""),
+                "license": snap_data.get("license", ""),
+                "website": snap_data.get("website", ""),
+                "contact": snap_data.get("contact", ""),
+                "categories": [
+                    cat.get("name", "") for cat in snap_data.get("categories", [])
+                ],
+                "channels": list(snap_data.get("channels", {}).keys()),
+                "timestamp": dt.datetime.utcnow().isoformat(),
+                "download_size": snap_data.get("download", {}).get("size", 0),
+                "installed_size": snap_data.get("installed-size", 0),
+            }
 
-        # Also send to API for immediate availability
-        api_data = {
-            "snap_name": snap,
-            "channel": "stable",
-            "download_total": meta.channel_downloads.get("stable", 0),
-            "download_last_30_days": meta.channel_downloads.get("stable", 0)
-            // 10,  # Estimate
-            "rating": getattr(meta, "rating", 4.0),
-            "version": getattr(meta, "version", "1.0.0"),
-            "confinement": getattr(meta, "confinement", "strict"),
-            "grade": getattr(meta, "grade", "stable"),
-            "publisher": getattr(meta, "publisher", "Unknown"),
-        }
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error getting snap info: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting snap info: {e}")
+            return None
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(f"{API_ENDPOINT}/ingest", json=api_data)
-            if response.status_code == 200:
-                print("Pushed to API:", api_data)
-            else:
-                print(f"Failed to push to API: {response.status_code}")
 
-    except Exception as e:
-        print(f"Error collecting metrics for {snap}: {e}")
+async def send_to_api(data: Dict[str, Any]) -> bool:
+    """Send collected data to the API service."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(f"{API_URL}/ingest", json=data, timeout=30.0)
+            response.raise_for_status()
+            logger.info(f"Successfully sent data to API: {data['snap_name']}")
+            return True
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error sending to API: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending to API: {e}")
+            return False
+
+
+async def collect_and_send():
+    """Main collection function - get snap data and send to API."""
+    logger.info(f"Collecting data for snap: {SNAP_NAME}")
+
+    snap_data = await get_snap_info(SNAP_NAME)
+    if snap_data:
+        success = await send_to_api(snap_data)
+        if success:
+            logger.info(f"Collection cycle completed successfully for {SNAP_NAME}")
+        else:
+            logger.error(f"Failed to send data for {SNAP_NAME}")
+    else:
+        logger.error(f"Failed to get data for {SNAP_NAME}")
 
 
 async def main():
-    print("Starting SnapPulse Collector...")
+    """Main collector loop."""
+    logger.info(f"Starting SnapPulse Collector")
+    logger.info(f"Monitoring snap: {SNAP_NAME}")
+    logger.info(f"Collection interval: {INTERVAL} seconds")
+    logger.info(f"API endpoint: {API_URL}")
+
     while True:
-        await job()
-        await asyncio.sleep(1800)  # 30 minutes
+        try:
+            await collect_and_send()
+        except Exception as e:
+            logger.error(f"Error in collection cycle: {e}")
+
+        logger.info(f"Waiting {INTERVAL} seconds until next collection...")
+        await asyncio.sleep(INTERVAL)
 
 
 if __name__ == "__main__":

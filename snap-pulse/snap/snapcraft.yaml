@@ -1,6 +1,6 @@
 name: snap-pulse
 base: core22
-version: '1.0.0'
+version: 1.0.0
 summary: SnapPulse - Self-hosted analytics for Snap Store packages
 description: |
   SnapPulse provides comprehensive analytics for Snap Store packages,
@@ -21,7 +21,7 @@ slots:
     interface: content
     content: snap-pulse-data
     write:
-      - $SNAP_DATA
+    - $SNAP_DATA
 
 plugs:
   microk8s:
@@ -38,24 +38,24 @@ apps:
     daemon: simple
     install-mode: enable
     plugs:
-      - network
-      - network-bind
-      - microk8s
-      - juju-client-observe
+    - network
+    - network-bind
+    - microk8s
+    - juju-client-observe
 
   dashboard:
     command: bin/open-dashboard
     plugs:
-      - network
+    - network
 
 parts:
   snap-pulse-core:
     plugin: dump
     source: .
     stage:
-      - kubernetes/
-      - charms/
-      - scripts/
+    - kubernetes/
+    - charms/
+    - scripts/
     override-build: |
       craftctl default
 

@@ -1,12 +1,12 @@
 name: collector
 type: charm
 bases:
-  - build-on:
-      - name: ubuntu
-        channel: '22.04'
-    run-on:
-      - name: ubuntu
-        channel: '22.04'
+- build-on:
+  - name: ubuntu
+    channel: '22.04'
+  run-on:
+  - name: ubuntu
+    channel: '22.04'
 
 description: |
   SnapPulse data collector charm that pulls public store data
