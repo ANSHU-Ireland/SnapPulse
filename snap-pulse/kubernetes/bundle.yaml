@@ -10,25 +10,23 @@ applications:
     charm: ./charms/collector
     num_units: 1
     options:
-      snap-name: "firefox"
-    
+      snap-name: firefox
   snap-pulse-api:
     charm: ./charms/api
     num_units: 1
     expose: true
-    
+
   snap-pulse-dashboard:
     charm: ./charms/dashboard
     num_units: 1
     expose: true
     options:
-      api-url: "http://snap-pulse-api:8000"
-      
+      api-url: http://snap-pulse-api:8000
   snap-pulse-copilot:
     charm: ./charms/copilot
     num_units: 1
     options:
-      github-token: ""  # Set this to your GitHub token
+      github-token: ''  # Set this to your GitHub token
 
 relations:
-  - ["snap-pulse-api:api-endpoint", "snap-pulse-dashboard:api"]
+  - [snap-pulse-api:api-endpoint, snap-pulse-dashboard:api]

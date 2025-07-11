@@ -2,11 +2,11 @@ name: dashboard
 type: charm
 bases:
   - build-on:
-    - name: ubuntu
-      channel: "22.04"
+      - name: ubuntu
+        channel: '22.04'
     run-on:
-    - name: ubuntu
-      channel: "22.04"
+      - name: ubuntu
+        channel: '22.04'
 
 description: |
   SnapPulse dashboard service charm that provides a web interface
@@ -18,7 +18,7 @@ config:
   options:
     api-url:
       type: string
-      default: "http://api:8000"
+      default: http://api:8000
       description: URL of the API service
 
 containers:

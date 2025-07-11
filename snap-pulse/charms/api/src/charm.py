@@ -34,7 +34,7 @@ class ApiCharm(CharmBase):
     def _update_layer(self):
         """Update the Pebble layer."""
         container = self.unit.get_container("api")
-        
+
         if not container.can_connect():
             logger.info("Waiting for Pebble API")
             return

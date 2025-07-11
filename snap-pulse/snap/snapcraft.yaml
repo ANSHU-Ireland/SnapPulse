@@ -5,7 +5,7 @@ summary: SnapPulse - Self-hosted analytics for Snap Store packages
 description: |
   SnapPulse provides comprehensive analytics for Snap Store packages,
   filling the transparency gap that developers and users have been asking for.
-  
+
   Features:
   - Real-time data collection from Snap Store
   - Beautiful web dashboard with charts and metrics
@@ -58,51 +58,51 @@ parts:
       - scripts/
     override-build: |
       craftctl default
-      
+
       # Create launcher script
       mkdir -p $CRAFTCTL_PART_INSTALL/bin
       cat > $CRAFTCTL_PART_INSTALL/bin/snap-pulse-launcher << 'EOF'
-#!/bin/bash
-set -e
+      #!/bin/bash
+      set -e
 
-echo "🚀 Starting SnapPulse..."
+      echo "🚀 Starting SnapPulse..."
 
-# Check if microk8s is available
-if ! command -v microk8s &> /dev/null; then
-    echo "❌ microk8s not found. Please install: sudo snap install microk8s --classic"
-    exit 1
-fi
+      # Check if microk8s is available
+      if ! command -v microk8s &> /dev/null; then
+          echo "❌ microk8s not found. Please install: sudo snap install microk8s --classic"
+          exit 1
+      fi
 
-# Check if juju is available  
-if ! command -v juju &> /dev/null; then
-    echo "❌ juju not found. Please install: sudo snap install juju --classic"
-    exit 1
-fi
+      # Check if juju is available
+      if ! command -v juju &> /dev/null; then
+          echo "❌ juju not found. Please install: sudo snap install juju --classic"
+          exit 1
+      fi
 
-# Deploy SnapPulse
-cd $SNAP/scripts
-./deploy.sh
+      # Deploy SnapPulse
+      cd $SNAP/scripts
+      ./deploy.sh
 
-echo "✅ SnapPulse is running!"
-echo "📊 Dashboard will be available at the URL shown above"
-EOF
+      echo "✅ SnapPulse is running!"
+      echo "📊 Dashboard will be available at the URL shown above"
+      EOF
 
       cat > $CRAFTCTL_PART_INSTALL/bin/open-dashboard << 'EOF'
-#!/bin/bash
-# Get dashboard IP and open in browser
-dashboard_ip=$(juju status dashboard --format=yaml | grep public-address | awk '{print $2}')
-if [ -n "$dashboard_ip" ]; then
-    echo "🌐 Opening SnapPulse Dashboard at http://$dashboard_ip:3000"
-    if command -v xdg-open &> /dev/null; then
-        xdg-open "http://$dashboard_ip:3000"
-    else
-        echo "Please open http://$dashboard_ip:3000 in your browser"
-    fi
-else
-    echo "❌ Dashboard not yet ready. Try again in a few minutes."
-    echo "💡 Check status with: juju status"
-fi
-EOF
+      #!/bin/bash
+      # Get dashboard IP and open in browser
+      dashboard_ip=$(juju status dashboard --format=yaml | grep public-address | awk '{print $2}')
+      if [ -n "$dashboard_ip" ]; then
+          echo "🌐 Opening SnapPulse Dashboard at http://$dashboard_ip:3000"
+          if command -v xdg-open &> /dev/null; then
+              xdg-open "http://$dashboard_ip:3000"
+          else
+              echo "Please open http://$dashboard_ip:3000 in your browser"
+          fi
+      else
+          echo "❌ Dashboard not yet ready. Try again in a few minutes."
+          echo "💡 Check status with: juju status"
+      fi
+      EOF
 
       chmod +x $CRAFTCTL_PART_INSTALL/bin/snap-pulse-launcher
       chmod +x $CRAFTCTL_PART_INSTALL/bin/open-dashboard

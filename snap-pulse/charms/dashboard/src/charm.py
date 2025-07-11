@@ -19,7 +19,9 @@ class DashboardCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.framework.observe(self.on.dashboard_pebble_ready, self._on_dashboard_pebble_ready)
+        self.framework.observe(
+            self.on.dashboard_pebble_ready, self._on_dashboard_pebble_ready
+        )
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self._stored.set_default(started=False)
 
@@ -34,7 +36,7 @@ class DashboardCharm(CharmBase):
     def _update_layer(self):
         """Update the Pebble layer."""
         container = self.unit.get_container("dashboard")
-        
+
         if not container.can_connect():
             logger.info("Waiting for Pebble API")
             return

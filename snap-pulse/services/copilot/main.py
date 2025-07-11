@@ -25,13 +25,12 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.float16,
     bnb_4bit_use_double_quant=True,
 )
-    bnb_4bit_use_double_quant=True,
-)
 
 # Load model and tokenizer (using a smaller model for demo)
 MODEL_NAME = "microsoft/DialoGPT-medium"  # Using a smaller model for demo purposes
 tokenizer = None
 model = None
+
 
 def load_model():
     global tokenizer, model
@@ -39,7 +38,7 @@ def load_model():
         logger.info("Loading model and tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         tokenizer.pad_token = tokenizer.eos_token
-        
+
         # For demo purposes, we'll use CPU inference
         model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
@@ -51,19 +50,23 @@ def load_model():
         logger.error(f"Error loading model: {e}")
         # For demo, we'll continue without the model
 
+
 # Load model on startup
 load_model()
+
 
 class SnapcraftAnalysisRequest(BaseModel):
     snapcraft_yaml: str
     repository_url: str
     issue_number: int
 
+
 class SnapcraftSuggestion(BaseModel):
     title: str
     description: str
     yaml_patch: str
     reasoning: str
+
 
 PROMPT_TEMPLATE = """You are SnapCraftCopilot, an expert in Snapcraft package optimization.
 
@@ -84,9 +87,10 @@ Return your response as valid YAML patches only. Focus on:
 
 Respond with actionable YAML changes."""
 
+
 def generate_suggestions(snapcraft_yaml: str) -> list[SnapcraftSuggestion]:
     """Generate optimization suggestions for a snapcraft.yaml file."""
-    
+
     # For demo purposes, return mock suggestions
     # In production, this would use the actual model
     suggestions = [
@@ -101,7 +105,7 @@ def generate_suggestions(snapcraft_yaml: str) -> list[SnapcraftSuggestion]:
      - make
 -    - python3-dev
      - pkg-config""",
-            reasoning="python3-dev is often included in the base and doesn't need to be explicitly listed"
+            reasoning="python3-dev is often included in the base and doesn't need to be explicitly listed",
         ),
         SnapcraftSuggestion(
             title="Tighten confinement with specific plugs",
@@ -116,7 +120,7 @@ def generate_suggestions(snapcraft_yaml: str) -> list[SnapcraftSuggestion]:
 +  - home-read-only
 +  - personal-files
    - network""",
-            reasoning="Using home-read-only instead of home provides better security while maintaining functionality"
+            reasoning="Using home-read-only instead of home provides better security while maintaining functionality",
         ),
         SnapcraftSuggestion(
             title="Use stage-packages optimization",
@@ -129,15 +133,17 @@ def generate_suggestions(snapcraft_yaml: str) -> list[SnapcraftSuggestion]:
      - libcurl4
 -    - ca-certificates
 -    - curl""",
-            reasoning="ca-certificates and curl are often available in the base, reducing snap size"
-        )
+            reasoning="ca-certificates and curl are often available in the base, reducing snap size",
+        ),
     ]
-    
+
     return suggestions
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "model_loaded": model is not None}
+
 
 @app.post("/analyze")
 async def analyze_snapcraft(request: SnapcraftAnalysisRequest) -> dict:
@@ -147,56 +153,61 @@ async def analyze_snapcraft(request: SnapcraftAnalysisRequest) -> dict:
         github_token = os.environ.get("GITHUB_TOKEN")
         if not github_token:
             raise HTTPException(status_code=400, detail="GitHub token not configured")
-        
+
         # Initialize GitHub client
         g = Github(github_token)
-        
+
         # Parse repository URL to get owner/repo
-        repo_parts = request.repository_url.replace("https://github.com/", "").split("/")
+        repo_parts = request.repository_url.replace("https://github.com/", "").split(
+            "/"
+        )
         if len(repo_parts) < 2:
             raise HTTPException(status_code=400, detail="Invalid repository URL")
-        
+
         owner, repo_name = repo_parts[0], repo_parts[1]
         repo = g.get_repo(f"{owner}/{repo_name}")
-        
+
         # Fetch current snapcraft.yaml
         try:
             snapcraft_file = repo.get_contents("snapcraft.yaml")
-            current_yaml = snapcraft_file.decoded_content.decode('utf-8')
+            current_yaml = snapcraft_file.decoded_content.decode("utf-8")
         except:
             try:
                 snapcraft_file = repo.get_contents("snap/snapcraft.yaml")
-                current_yaml = snapcraft_file.decoded_content.decode('utf-8')
+                current_yaml = snapcraft_file.decoded_content.decode("utf-8")
             except:
-                raise HTTPException(status_code=404, detail="snapcraft.yaml not found in repository")
-        
+                raise HTTPException(
+                    status_code=404, detail="snapcraft.yaml not found in repository"
+                )
+
         # Generate suggestions
         suggestions = generate_suggestions(current_yaml)
-        
+
         # Create a branch and PR with improvements
         main_branch = repo.get_branch("main")
         new_branch_name = f"snappulse-optimization-{request.issue_number}"
-        
+
         try:
             # Create new branch
             repo.create_git_ref(
-                ref=f"refs/heads/{new_branch_name}",
-                sha=main_branch.commit.sha
+                ref=f"refs/heads/{new_branch_name}", sha=main_branch.commit.sha
             )
-            
+
             # Apply the first suggestion as an example
             if suggestions:
-                improved_yaml = apply_yaml_patch(current_yaml, suggestions[0].yaml_patch)
-                
+                improved_yaml = apply_yaml_patch(
+                    current_yaml, suggestions[0].yaml_patch
+                )
+
                 # Update the file
                 repo.update_file(
                     path=snapcraft_file.path,
                     message=f"SnapPulse optimization: {suggestions[0].title}",
                     content=improved_yaml,
                     sha=snapcraft_file.sha,
-                    branch=new_branch_name
+                    branch=new_branch_name,
                 )
-                
+
                 # Create PR
                 pr = repo.create_pull(
                     title=f"🚀 SnapPulse optimization suggestions (Issue #{request.issue_number})",
@@ -210,76 +221,88 @@ This PR contains optimization suggestions for your snapcraft.yaml:
 **Reasoning:** {suggestions[0].reasoning}
 
 ### Additional Suggestions:
-""" + "\n".join([f"- **{s.title}**: {s.description}" for s in suggestions[1:]]),
+"""
+                    + "\n".join(
+                        [f"- **{s.title}**: {s.description}" for s in suggestions[1:]]
+                    ),
                     head=new_branch_name,
-                    base="main"
+                    base="main",
                 )
-                
+
                 return {
                     "status": "success",
                     "pr_url": pr.html_url,
                     "suggestions": [s.dict() for s in suggestions],
                     "repository_url": request.repository_url,
-                    "analysis_timestamp": "2025-07-11T00:00:00Z"
+                    "analysis_timestamp": "2025-07-11T00:00:00Z",
                 }
         except Exception as git_error:
             logger.error(f"Git operations failed: {git_error}")
             # Fallback to just returning suggestions
             pass
-        
+
         return {
             "suggestions": [s.dict() for s in suggestions],
             "repository_url": request.repository_url,
-            "analysis_timestamp": "2025-07-11T00:00:00Z"
+            "analysis_timestamp": "2025-07-11T00:00:00Z",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
 
 def apply_yaml_patch(original_yaml: str, patch: str) -> str:
     """Apply a YAML patch to the original content."""
     try:
         # Simple patch application - in production use ruamel.yaml
-        lines = original_yaml.split('\n')
-        patch_lines = patch.split('\n')
-        
+        lines = original_yaml.split("\n")
+        patch_lines = patch.split("\n")
+
         # For demo, just append the patch
-        return original_yaml + '\n\n# SnapPulse optimization:\n' + patch
+        return original_yaml + "\n\n# SnapPulse optimization:\n" + patch
     except Exception as e:
         logger.error(f"Failed to apply patch: {e}")
         return original_yaml
+
 
 @app.post("/github-webhook")
 async def handle_github_webhook(payload: dict):
     """Handle GitHub webhook for /snappulse fix commands."""
     try:
         # Check if this is an issue comment with /snappulse fix
-        if (payload.get("action") == "created" and 
-            "comment" in payload and 
-            "/snappulse fix" in payload["comment"]["body"]):
-            
+        if (
+            payload.get("action") == "created"
+            and "comment" in payload
+            and "/snappulse fix" in payload["comment"]["body"]
+        ):
+
             repo_url = payload["repository"]["html_url"]
             issue_number = payload["issue"]["number"]
-            
+
             # For demo purposes, return success
             # In production, this would:
             # 1. Clone the repository
             # 2. Find snapcraft.yaml
             # 3. Generate suggestions
             # 4. Create a PR with improvements
-            
-            logger.info(f"Processing /snappulse fix request for {repo_url}#{issue_number}")
-            
+
+            logger.info(
+                f"Processing /snappulse fix request for {repo_url}#{issue_number}"
+            )
+
             return {
                 "status": "processing",
                 "message": f"Creating optimization PR for issue #{issue_number}",
-                "repository": repo_url
+                "repository": repo_url,
             }
-            
+
         return {"status": "ignored", "reason": "Not a /snappulse fix command"}
-        
+
     except Exception as e:
         logger.error(f"Webhook processing error: {e}")
-        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Webhook processing failed: {str(e)}"
+        )
+
 
 @app.get("/")
 async def root():
@@ -287,9 +310,11 @@ async def root():
         "message": "SnapPulse Copilot",
         "version": "1.0.0",
         "model": MODEL_NAME,
-        "model_loaded": model is not None
+        "model_loaded": model is not None,
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)
