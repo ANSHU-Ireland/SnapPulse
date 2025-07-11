@@ -1,32 +1,34 @@
+bundle: kubernetes
+
 name: snap-pulse
 description: |
   SnapPulse - A self-hosted analytics platform for Snap Store packages.
   Provides data collection, API endpoints, dashboard, and AI-powered optimization suggestions.
 
 applications:
-  collector:
+  snap-pulse-collector:
     charm: ./charms/collector
     num_units: 1
     options:
       snap-name: "firefox"
     
-  api:
+  snap-pulse-api:
     charm: ./charms/api
     num_units: 1
     expose: true
     
-  dashboard:
+  snap-pulse-dashboard:
     charm: ./charms/dashboard
     num_units: 1
     expose: true
     options:
-      api-url: "http://api:8000"
+      api-url: "http://snap-pulse-api:8000"
       
-  copilot:
+  snap-pulse-copilot:
     charm: ./charms/copilot
     num_units: 1
     options:
       github-token: ""  # Set this to your GitHub token
 
 relations:
-  - [api:api-endpoint, dashboard:api]
+  - ["snap-pulse-api:api-endpoint", "snap-pulse-dashboard:api"]

@@ -3,4 +3,5 @@ apscheduler
 feast==0.46
 click
 pydantic
-asyncio
+httpx
+uvloop

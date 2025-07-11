@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 yamllint pytest httpx
+    
+    - name: Lint Python code
+      run: |
+        flake8 snap-pulse/services/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 snap-pulse/services/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Lint YAML files
+      run: |
+        yamllint snap-pulse/kubernetes/
+        yamllint snap-pulse/charms/*/charmcraft.yaml
+        yamllint snap-pulse/snap/snapcraft.yaml
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest httpx fastapi uvicorn
+    
+    - name: Run API tests
+      run: |
+        cd snap-pulse/services/api
+        python -m pytest ../../tests/ -v
+    
+    - name: Run Copilot tests
+      run: |
+        cd snap-pulse/services/copilot
+        python -m pytest ../../tests/ -v
+
+  charmcraft-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install charmcraft
+      run: |
+        sudo snap install charmcraft --classic
+    
+    - name: Lint charms
+      run: |
+        cd snap-pulse/charms/api && charmcraft lint
+        cd ../collector && charmcraft lint
+        cd ../dashboard && charmcraft lint
+        cd ../copilot && charmcraft lint

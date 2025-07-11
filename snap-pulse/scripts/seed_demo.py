@@ -7,6 +7,7 @@ This script generates realistic-looking analytics data for demonstration purpose
 import json
 import random
 import datetime
+import math
 from pathlib import Path
 
 def generate_snap_data(snap_name: str, days: int = 180) -> dict:

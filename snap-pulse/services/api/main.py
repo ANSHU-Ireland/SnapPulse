@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-# from feast import FeatureStore  # Commented out for local demo
-import os
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
+import uvicorn
+import os
 
 app = FastAPI(title="SnapPulse API", version="1.0.0")
 
@@ -17,8 +18,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Feast feature store
-# fs = FeatureStore(repo_path="feast_repo")  # Commented out for local demo
+# Data models
+class SnapData(BaseModel):
+    snap_name: str
+    channel: str
+    download_total: int
+    download_last_30_days: int
+    rating: float
+    version: str
+    last_updated: datetime
+    confinement: str
+    grade: str
+    publisher: str
+    trending_score: float
+
+class IngestData(BaseModel):
+    snap_name: str
+    channel: str
+    download_total: int
+    download_last_30_days: int
+    rating: float
+    version: str
+    confinement: str
+    grade: str
+    publisher: str
+
+# In-memory storage for demo (replace with OpenSearch in production)
+snap_data_store: Dict[str, Dict[str, SnapData]] = {}
 
 @app.get("/")
 async def root():
@@ -32,8 +58,24 @@ async def health_check():
 async def get_snap_stats(snap_name: str, channel: str = "stable"):
     """Get statistics for a specific snap and channel."""
     try:
-        # For now, return mock data since we need to set up the full pipeline
-        # In a real implementation, this would query Feast and OpenSearch
+        # Check if we have real data
+        if snap_name in snap_data_store and channel in snap_data_store[snap_name]:
+            data = snap_data_store[snap_name][channel]
+            return {
+                "snap_name": data.snap_name,
+                "channel": data.channel,
+                "download_total": data.download_total,
+                "download_last_30_days": data.download_last_30_days,
+                "rating": data.rating,
+                "version": data.version,
+                "last_updated": data.last_updated.isoformat(),
+                "confinement": data.confinement,
+                "grade": data.grade,
+                "publisher": data.publisher,
+                "trending_score": data.trending_score
+            }
+        
+        # Fallback to mock data for demo
         mock_data = {
             "snap_name": snap_name,
             "channel": channel,
@@ -91,6 +133,39 @@ async def github_webhook(payload: Dict):
     # This will be used by the copilot service
     return {"status": "received", "timestamp": datetime.utcnow().isoformat()}
 
+@app.post("/ingest")
+async def ingest_snap_data(data: IngestData):
+    """Ingest snap data from collector"""
+    try:
+        snap_data = SnapData(
+            snap_name=data.snap_name,
+            channel=data.channel,
+            download_total=data.download_total,
+            download_last_30_days=data.download_last_30_days,
+            rating=data.rating,
+            version=data.version,
+            last_updated=datetime.now(),
+            confinement=data.confinement,
+            grade=data.grade,
+            publisher=data.publisher,
+            trending_score=calculate_trending_score(data)
+        )
+        
+        # Store data
+        if data.snap_name not in snap_data_store:
+            snap_data_store[data.snap_name] = {}
+        snap_data_store[data.snap_name][data.channel] = snap_data
+        
+        return {"status": "success", "message": "Data ingested successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to ingest data: {str(e)}")
+
+def calculate_trending_score(data: IngestData) -> float:
+    """Calculate trending score based on downloads and rating"""
+    # Simple algorithm: weight recent downloads more heavily
+    base_score = data.rating * 10
+    download_boost = min(data.download_last_30_days / 1000, 50)  # Cap at 50
+    return round(base_score + download_boost, 1)
+
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

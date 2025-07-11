@@ -7,17 +7,24 @@ from github import Github
 import yaml
 import tempfile
 import logging
+from typing import Dict, Any
+import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SnapPulse Copilot", version="1.0.0")
 
-# Configure 4-bit quantization
+# Use a lighter model for better performance
+MODEL_NAME = "microsoft/DialoGPT-small"  # Smaller than medium, faster startup
+
+# Configure 4-bit quantization for efficiency
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_quant_type="nf4",
     bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_use_double_quant=True,
+)
     bnb_4bit_use_double_quant=True,
 )
 
@@ -136,7 +143,89 @@ async def health_check():
 async def analyze_snapcraft(request: SnapcraftAnalysisRequest) -> dict:
     """Analyze a snapcraft.yaml and generate optimization suggestions."""
     try:
-        suggestions = generate_suggestions(request.snapcraft_yaml)
+        # Get GitHub token
+        github_token = os.environ.get("GITHUB_TOKEN")
+        if not github_token:
+            raise HTTPException(status_code=400, detail="GitHub token not configured")
+        
+        # Initialize GitHub client
+        g = Github(github_token)
+        
+        # Parse repository URL to get owner/repo
+        repo_parts = request.repository_url.replace("https://github.com/", "").split("/")
+        if len(repo_parts) < 2:
+            raise HTTPException(status_code=400, detail="Invalid repository URL")
+        
+        owner, repo_name = repo_parts[0], repo_parts[1]
+        repo = g.get_repo(f"{owner}/{repo_name}")
+        
+        # Fetch current snapcraft.yaml
+        try:
+            snapcraft_file = repo.get_contents("snapcraft.yaml")
+            current_yaml = snapcraft_file.decoded_content.decode('utf-8')
+        except:
+            try:
+                snapcraft_file = repo.get_contents("snap/snapcraft.yaml")
+                current_yaml = snapcraft_file.decoded_content.decode('utf-8')
+            except:
+                raise HTTPException(status_code=404, detail="snapcraft.yaml not found in repository")
+        
+        # Generate suggestions
+        suggestions = generate_suggestions(current_yaml)
+        
+        # Create a branch and PR with improvements
+        main_branch = repo.get_branch("main")
+        new_branch_name = f"snappulse-optimization-{request.issue_number}"
+        
+        try:
+            # Create new branch
+            repo.create_git_ref(
+                ref=f"refs/heads/{new_branch_name}",
+                sha=main_branch.commit.sha
+            )
+            
+            # Apply the first suggestion as an example
+            if suggestions:
+                improved_yaml = apply_yaml_patch(current_yaml, suggestions[0].yaml_patch)
+                
+                # Update the file
+                repo.update_file(
+                    path=snapcraft_file.path,
+                    message=f"SnapPulse optimization: {suggestions[0].title}",
+                    content=improved_yaml,
+                    sha=snapcraft_file.sha,
+                    branch=new_branch_name
+                )
+                
+                # Create PR
+                pr = repo.create_pull(
+                    title=f"🚀 SnapPulse optimization suggestions (Issue #{request.issue_number})",
+                    body=f"""## SnapPulse Optimization Report
+
+This PR contains optimization suggestions for your snapcraft.yaml:
+
+### {suggestions[0].title}
+{suggestions[0].description}
+
+**Reasoning:** {suggestions[0].reasoning}
+
+### Additional Suggestions:
+""" + "\n".join([f"- **{s.title}**: {s.description}" for s in suggestions[1:]]),
+                    head=new_branch_name,
+                    base="main"
+                )
+                
+                return {
+                    "status": "success",
+                    "pr_url": pr.html_url,
+                    "suggestions": [s.dict() for s in suggestions],
+                    "repository_url": request.repository_url,
+                    "analysis_timestamp": "2025-07-11T00:00:00Z"
+                }
+        except Exception as git_error:
+            logger.error(f"Git operations failed: {git_error}")
+            # Fallback to just returning suggestions
+            pass
         
         return {
             "suggestions": [s.dict() for s in suggestions],
@@ -145,6 +234,19 @@ async def analyze_snapcraft(request: SnapcraftAnalysisRequest) -> dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+def apply_yaml_patch(original_yaml: str, patch: str) -> str:
+    """Apply a YAML patch to the original content."""
+    try:
+        # Simple patch application - in production use ruamel.yaml
+        lines = original_yaml.split('\n')
+        patch_lines = patch.split('\n')
+        
+        # For demo, just append the patch
+        return original_yaml + '\n\n# SnapPulse optimization:\n' + patch
+    except Exception as e:
+        logger.error(f"Failed to apply patch: {e}")
+        return original_yaml
 
 @app.post("/github-webhook")
 async def handle_github_webhook(payload: dict):

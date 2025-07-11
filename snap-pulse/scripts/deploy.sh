@@ -70,45 +70,36 @@ juju deploy ./kubernetes/bundle.yaml
 echo "⏳ Waiting for deployment to complete..."
 echo "   This may take several minutes as containers are pulled and started..."
 
-# Wait for all applications to be active
-timeout=300  # 5 minutes
-elapsed=0
-while [ $elapsed -lt $timeout ]; do
-    status=$(juju status --format=tabular | grep -E "(collector|api|dashboard|copilot)" | awk '{print $4}' | sort | uniq)
-    
-    if [[ "$status" == "active" ]]; then
-        echo "✅ All applications are active!"
-        break
-    fi
-    
-    echo "   Status: $(echo $status | tr '\n' ' ')"
-    sleep 10
-    elapsed=$((elapsed + 10))
-done
+echo "⏳ Waiting for deployment to complete..."
+echo "   This may take several minutes as containers are pulled and started..."
 
-if [ $elapsed -ge $timeout ]; then
-    echo "⚠️  Deployment taking longer than expected. Current status:"
+# Use juju wait for better status checking
+echo "   Using juju wait to monitor deployment..."
+if juju wait --timeout 5m -m snap-pulse; then
+    echo "✅ All applications are ready!"
+else
+    echo "⚠️  Deployment taking longer than expected or failed. Current status:"
     juju status
     echo "   You can continue monitoring with: juju status"
-else
-    echo "🎉 SnapPulse deployed successfully!"
-    echo ""
-    echo "📊 Service URLs:"
-    api_ip=$(juju status api --format=yaml | grep public-address | awk '{print $2}')
-    dashboard_ip=$(juju status dashboard --format=yaml | grep public-address | awk '{print $2}')
-    
-    if [ -n "$api_ip" ]; then
-        echo "   API: http://$api_ip:8000"
-        echo "   Dashboard: http://$dashboard_ip:3000"
-    else
-        echo "   Use 'juju status' to get service IPs"
-    fi
-    
-    echo ""
-    echo "🧪 Quick test:"
-    echo "   curl http://$api_ip:8000/health"
-    echo ""
-    echo "📝 To monitor the deployment:"
-    echo "   juju status"
-    echo "   juju debug-log"
+    exit 1
 fi
+echo "🎉 SnapPulse deployed successfully!"
+echo ""
+echo "📊 Service URLs:"
+api_ip=$(juju status snap-pulse-api --format=yaml | grep public-address | awk '{print $2}' | head -1)
+dashboard_ip=$(juju status snap-pulse-dashboard --format=yaml | grep public-address | awk '{print $2}' | head -1)
+
+if [ -n "$api_ip" ]; then
+    echo "   API: http://$api_ip:8000"
+    echo "   Dashboard: http://$dashboard_ip:3000"
+else
+    echo "   Use 'juju status' to get service IPs"
+fi
+
+echo ""
+echo "🧪 Quick test:"
+echo "   curl http://$api_ip:8000/health"
+echo ""
+echo "📝 To monitor the deployment:"
+echo "   juju status"
+echo "   juju debug-log"
