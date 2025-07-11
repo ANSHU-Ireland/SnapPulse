@@ -17,6 +17,6 @@ applications:
     resources:
       copilot-image: ghcr.io/example/snap-pulse-copilot:latest
 relations:
-  - [collector, api]
-  - [api, dashboard]
-  - [api, copilot]
+- [collector, api]
+- [api, dashboard]
+- [api, copilot]
