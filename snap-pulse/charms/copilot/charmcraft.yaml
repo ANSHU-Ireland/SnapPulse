@@ -18,8 +18,8 @@ config:
   options:
     github-token:
       type: string
-      default: ''
-      description: GitHub personal access token for PR creation
+      default: ""
+      description: GitHub personal access token for creating PRs
 
 containers:
   copilot:

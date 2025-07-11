@@ -22,6 +22,23 @@ def test_health_endpoint():
 
 def test_stats_endpoint():
     """Test that the stats endpoint returns snap data."""
+    # First ingest some test data
+    test_data = {
+        "snap_name": "firefox",
+        "channel": "stable",
+        "download_total": 150000,
+        "download_last_30_days": 12000,
+        "rating": 4.2,
+        "version": "1.0.0",
+        "confinement": "strict",
+        "grade": "stable",
+        "publisher": "Test Publisher"
+    }
+    
+    ingest_response = client.post("/ingest", json=test_data)
+    assert ingest_response.status_code == 200
+    
+    # Now test the stats endpoint
     response = client.get("/stats/firefox/stable")
     assert response.status_code == 200
     data = response.json()
@@ -38,6 +55,14 @@ def test_stats_endpoint():
     
     assert data["snap_name"] == "firefox"
     assert data["channel"] == "stable"
+    assert data["download_total"] == 150000
+
+def test_stats_endpoint_no_data():
+    """Test that the stats endpoint returns 404 when no data exists."""
+    response = client.get("/stats/nonexistent-snap/stable")
+    assert response.status_code == 404
+    data = response.json()
+    assert "No data yet" in data["detail"]
 
 def test_trending_endpoint():
     """Test that the trending endpoint returns trending data."""

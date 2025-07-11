@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import json
 import uvicorn
 import os
+import httpx
 
 app = FastAPI(title="SnapPulse API", version="1.0.0")
 
@@ -81,21 +82,12 @@ async def get_snap_stats(snap_name: str, channel: str = "stable"):
                 "trending_score": data.trending_score,
             }
 
-        # Fallback to mock data for demo
-        mock_data = {
-            "snap_name": snap_name,
-            "channel": channel,
-            "download_total": 150000,
-            "download_last_30_days": 12000,
-            "rating": 4.2,
-            "version": "1.0.0",
-            "last_updated": (datetime.utcnow() - timedelta(days=2)).isoformat(),
-            "confinement": "strict",
-            "grade": "stable",
-            "publisher": "Canonical",
-            "trending_score": 85.5,
-        }
-        return mock_data
+        # No real data available yet
+        raise HTTPException(
+            status_code=404, detail="No data yet – wait for collector"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 
@@ -139,10 +131,19 @@ async def get_trending_snaps(limit: int = 10):
 
 
 @app.post("/webhook/github")
-async def github_webhook(payload: Dict):
-    """Handle GitHub webhooks for copilot integration."""
-    # This will be used by the copilot service
-    return {"status": "received", "timestamp": datetime.utcnow().isoformat()}
+async def github_webhook_handler(payload: dict):
+    """Forward GitHub webhooks to the Copilot service."""
+    try:
+        # Forward to copilot service
+        copilot_url = os.environ.get("COPILOT_ENDPOINT", "http://localhost:8001")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{copilot_url}/github-webhook", json=payload
+            )
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook forwarding failed: {str(e)}")
 
 
 @app.post("/ingest")

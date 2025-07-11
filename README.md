@@ -38,8 +38,7 @@ curl http://localhost:8000/trending
 - 🔄 Auto-refreshing data every 5 seconds
 - 🎛️ Channel and snap selection (Firefox, Discord, VS Code, Spotify)
 
-![SnapPulse Dashboard](snap-pulse/docs/screenshots.md)
-*See the screenshots directory for visual examples of the dashboard*
+📸 **Screenshots:** See [documentation](snap-pulse/docs/dashboard-screenshot.md) for dashboard examples
 
 ### Option 2: Full Production Deployment
 
