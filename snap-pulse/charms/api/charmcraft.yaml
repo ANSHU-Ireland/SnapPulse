@@ -1,0 +1,28 @@
+name: api
+type: charm
+bases:
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+
+description: |
+  SnapPulse API service charm that exposes REST endpoints
+  for accessing snap analytics data.
+
+summary: SnapPulse API Service
+
+containers:
+  api:
+    resource: api-image
+
+resources:
+  api-image:
+    type: oci-image
+    description: OCI image for API service
+
+provides:
+  api-endpoint:
+    interface: http

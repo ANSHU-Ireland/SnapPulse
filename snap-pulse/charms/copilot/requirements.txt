@@ -1,0 +1,11 @@
+transformers
+torch
+bitsandbytes
+accelerate
+peft
+fastapi
+uvicorn[standard]
+PyGithub
+pydantic
+click
+requests

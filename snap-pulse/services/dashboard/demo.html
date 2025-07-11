@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapPulse Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .badge {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: white;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card h3 {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            color: #111827;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .chart-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-container {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .trending-container {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .trending-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .trending-item:last-child {
+            border-bottom: none;
+        }
+        
+        .trending-name {
+            font-weight: 500;
+            color: #111827;
+        }
+        
+        .trending-growth {
+            color: #059669;
+            font-weight: 600;
+        }
+        
+        .loading {
+            color: #6b7280;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>SnapPulse <span class="badge">Dashboard</span></h1>
+        </div>
+        <div class="controls">
+            <select id="snapSelect">
+                <option value="firefox">Firefox</option>
+                <option value="discord">Discord</option>
+                <option value="code">VS Code</option>
+                <option value="spotify">Spotify</option>
+            </select>
+            <select id="channelSelect">
+                <option value="stable">Stable</option>
+                <option value="candidate">Candidate</option>
+                <option value="beta">Beta</option>
+                <option value="edge">Edge</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Downloads</h3>
+                <div class="value" id="totalDownloads">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <h3>Rating</h3>
+                <div class="value" id="rating">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <h3>Version</h3>
+                <div class="value" id="version">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <h3>Trending Score</h3>
+                <div class="value" id="trendingScore">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Charts and Trending -->
+        <div class="chart-section">
+            <div class="chart-container">
+                <h2 style="margin-bottom: 1rem; color: #111827;">Download Trends</h2>
+                <canvas id="downloadsChart" width="400" height="200"></canvas>
+            </div>
+            
+            <div class="trending-container">
+                <h2 style="margin-bottom: 1rem; color: #111827;">Trending Snaps</h2>
+                <div id="trendingList">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        // Chart setup
+        const ctx = document.getElementById('downloadsChart').getContext('2d');
+        const downloadsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Downloads',
+                    data: [65000, 72000, 68000, 85000, 92000, 105000],
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return (value / 1000) + 'K';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Load snap stats
+        async function loadSnapStats() {
+            const snap = document.getElementById('snapSelect').value;
+            const channel = document.getElementById('channelSelect').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/stats/${snap}/${channel}`);
+                const data = await response.json();
+                
+                document.getElementById('totalDownloads').textContent = data.download_total.toLocaleString();
+                document.getElementById('rating').textContent = data.rating;
+                document.getElementById('version').textContent = data.version;
+                document.getElementById('trendingScore').textContent = data.trending_score;
+                
+                // Update chart title
+                downloadsChart.options.plugins.title = {
+                    display: true,
+                    text: `${snap} Downloads Over Time`
+                };
+                downloadsChart.update();
+                
+            } catch (error) {
+                console.error('Error loading snap stats:', error);
+                document.getElementById('totalDownloads').textContent = 'Error';
+                document.getElementById('rating').textContent = 'Error';
+                document.getElementById('version').textContent = 'Error';
+                document.getElementById('trendingScore').textContent = 'Error';
+            }
+        }
+
+        // Load trending snaps
+        async function loadTrending() {
+            try {
+                const response = await fetch(`${API_URL}/trending`);
+                const data = await response.json();
+                
+                const trendingList = document.getElementById('trendingList');
+                trendingList.innerHTML = '';
+                
+                data.trending.forEach((snap, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'trending-item';
+                    item.innerHTML = `
+                        <div>
+                            <span style="margin-right: 0.5rem; font-weight: bold;">#${index + 1}</span>
+                            <span class="trending-name">${snap.name}</span>
+                        </div>
+                        <div>
+                            <div class="trending-growth">+${snap.downloads_growth}%</div>
+                            <div style="font-size: 0.75rem; color: #6b7280;">★ ${snap.rating}</div>
+                        </div>
+                    `;
+                    trendingList.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error loading trending:', error);
+                document.getElementById('trendingList').innerHTML = '<div class="loading">Error loading trending data</div>';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('snapSelect').addEventListener('change', loadSnapStats);
+        document.getElementById('channelSelect').addEventListener('change', loadSnapStats);
+
+        // Initial load
+        loadSnapStats();
+        loadTrending();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            loadSnapStats();
+            loadTrending();
+        }, 5000);
+    </script>
+</body>
+</html>

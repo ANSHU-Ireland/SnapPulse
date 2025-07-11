@@ -1,0 +1,35 @@
+name: collector
+type: charm
+bases:
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+
+description: |
+  SnapPulse data collector charm that pulls public store data
+  and stores it in an analytics lake.
+
+summary: SnapPulse Collector Service
+
+config:
+  options:
+    snap-name:
+      type: string
+      default: "firefox"
+      description: The snap package name to monitor
+
+containers:
+  collector:
+    resource: collector-image
+
+resources:
+  collector-image:
+    type: oci-image
+    description: OCI image for collector service
+
+requires:
+  logging:
+    interface: loki_push_api

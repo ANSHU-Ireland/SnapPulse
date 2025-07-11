@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+opensearch-py
+feast==0.46
+python-multipart
+pydantic
+click
