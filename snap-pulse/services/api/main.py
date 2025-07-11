@@ -83,9 +83,7 @@ async def get_snap_stats(snap_name: str, channel: str = "stable"):
             }
 
         # No real data available yet
-        raise HTTPException(
-            status_code=404, detail="No data yet – wait for collector"
-        )
+        raise HTTPException(status_code=404, detail="No data yet – wait for collector")
     except HTTPException:
         raise
     except Exception as e:
@@ -138,12 +136,12 @@ async def github_webhook_handler(payload: dict):
         copilot_url = os.environ.get("COPILOT_ENDPOINT", "http://localhost:8001")
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{copilot_url}/github-webhook", json=payload
-            )
+            response = await client.post(f"{copilot_url}/github-webhook", json=payload)
             return response.json()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Webhook forwarding failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Webhook forwarding failed: {str(e)}"
+        )
 
 
 @app.post("/ingest")
